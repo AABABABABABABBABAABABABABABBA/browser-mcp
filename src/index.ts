@@ -35,6 +35,7 @@ import { payloadTools } from "./tools/payloads.js";
 import { advancedTools } from "./tools/advanced.js";
 import { formTools } from "./tools/forms.js";
 import { captchaTools } from "./tools/captcha.js";
+import { fileTools } from "./tools/files.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -70,6 +71,7 @@ const ALL: ToolDef[] = [
   ...advancedTools,
   ...formTools,
   ...captchaTools,
+  ...fileTools,
   ...utilTools,
 ];
 const byName = new Map(ALL.map((t) => [t.name, t]));
