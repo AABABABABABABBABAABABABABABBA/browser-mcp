@@ -79,11 +79,29 @@ export const browserTools: ToolDef[] = [
   },
   {
     name: "browser_screenshot",
-    description: "Take a screenshot. Returns a base64 PNG image.",
-    schema: z.object({ fullPage: z.boolean().optional(), ...sessionArg }),
+    description: "Capture a PNG of the BROWSER PAGE ONLY — just what's rendered in the viewport, not the OS desktop. Default is viewport-sized (what a user sees). Options: fullPage to include everything that scrolls, selector to capture a single element, clip to crop a rect.",
+    schema: z.object({
+      fullPage: z.boolean().optional().describe("default false — capture only the viewport (what the browser shows). true includes offscreen scroll area."),
+      selector: z.string().optional().describe("CSS selector to capture a specific element only"),
+      clip: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
+      omitBackground: z.boolean().optional().describe("transparent background instead of white"),
+      ...sessionArg,
+    }),
     handler: async (a) => {
       const s = hub.getSession(a.sessionId);
-      const buf = await s.page.screenshot({ fullPage: a.fullPage ?? false, type: "png" });
+      let buf: Buffer;
+      if (a.selector) {
+        const el = await s.page.$(a.selector);
+        if (!el) return { content: [{ type: "text", text: `error: element not found: ${a.selector}` }], isError: true };
+        buf = await el.screenshot({ type: "png", omitBackground: a.omitBackground });
+      } else {
+        buf = await s.page.screenshot({
+          fullPage: a.fullPage ?? false,
+          clip: a.clip,
+          omitBackground: a.omitBackground,
+          type: "png",
+        });
+      }
       return { content: [{ type: "image", data: buf.toString("base64"), mimeType: "image/png" }] };
     },
   },
