@@ -10,6 +10,8 @@ import { utilTools } from "./tools/util.js";
 import { consoleTools } from "./tools/console.js";
 import { sourceTools } from "./tools/source.js";
 import { userscriptTools } from "./tools/userscript.js";
+import { apiTools } from "./tools/api.js";
+import { vulnTools } from "./tools/vuln.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -17,8 +19,10 @@ const ALL: ToolDef[] = [
   ...browserTools,
   ...consoleTools,
   ...sourceTools,
+  ...apiTools,
   ...networkTools,
   ...scanTools,
+  ...vulnTools,
   ...userscriptTools,
   ...utilTools,
 ];
