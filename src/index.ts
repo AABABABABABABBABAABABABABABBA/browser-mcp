@@ -7,14 +7,58 @@ import { browserTools } from "./tools/browser.js";
 import { networkTools } from "./tools/network.js";
 import { scanTools } from "./tools/scan.js";
 import { utilTools } from "./tools/util.js";
+import { consoleTools } from "./tools/console.js";
+import { sourceTools } from "./tools/source.js";
+import { userscriptTools } from "./tools/userscript.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
-const ALL: ToolDef[] = [...browserTools, ...networkTools, ...scanTools, ...utilTools];
+const ALL: ToolDef[] = [
+  ...browserTools,
+  ...consoleTools,
+  ...sourceTools,
+  ...networkTools,
+  ...scanTools,
+  ...userscriptTools,
+  ...utilTools,
+];
 const byName = new Map(ALL.map((t) => [t.name, t]));
+const VERSION = "0.1.0";
+
+const argv = process.argv.slice(2);
+if (argv.includes("--version") || argv.includes("-v")) {
+  console.log(VERSION); process.exit(0);
+}
+if (argv.includes("--help") || argv.includes("-h")) {
+  console.log(`browser-mcp v${VERSION}
+Browser-driven MCP server with ${ALL.length} tools:
+  - browser control (navigate, click, type, screenshot, cookies, headers)
+  - console paste + capture (console_eval, console_inject_script, console_get_logs)
+  - source viewing (list scripts/stylesheets, fetch, grep across captured bodies)
+  - network capture + replay + fuzz + HAR export
+  - vulnerability scanners (headers, XSS, SQLi, open-redirect, JWT, CORS, forms, takeover, directory, full)
+  - tampermonkey builder (userscript_build, userscript_from_console_eval)
+  - utilities (http_request, base64, url_codec, hash)
+
+Usage:
+  browser-mcp                       run as MCP server over stdio
+  browser-mcp --list-tools          print the tool names and exit
+  browser-mcp --version | --help
+
+Add to Claude Code:
+  claude mcp add browser-mcp -- browser-mcp
+or edit your MCP config:
+  { "command": "browser-mcp", "args": [] }
+`);
+  process.exit(0);
+}
+if (argv.includes("--list-tools")) {
+  for (const t of ALL) console.log(`${t.name.padEnd(32)}  ${t.description.split("\n")[0].slice(0, 110)}`);
+  process.exit(0);
+}
 
 const server = new Server(
-  { name: "browser-mcp", version: "0.1.0" },
+  { name: "browser-mcp", version: VERSION },
   { capabilities: { tools: {} } },
 );
 
@@ -44,4 +88,4 @@ process.on("SIGTERM", shutdown);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error(`browser-mcp ready — ${ALL.length} tools registered`);
+console.error(`browser-mcp v${VERSION} ready — ${ALL.length} tools registered`);

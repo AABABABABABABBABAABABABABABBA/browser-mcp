@@ -17,12 +17,21 @@ export interface CapturedRequest {
   failure: string | null;
 }
 
+export interface ConsoleEntry {
+  ts: number;
+  type: string;
+  text: string;
+  location?: { url: string; line: number; column: number };
+}
+
 export interface Session {
   id: string;
   context: BrowserContext;
   page: Page;
   requests: CapturedRequest[];
   pendingStarts: Map<string, number>;
+  consoleLogs: ConsoleEntry[];
+  pageErrors: Array<{ ts: number; message: string; stack?: string }>;
   recording: boolean;
   createdAt: number;
 }
@@ -70,10 +79,13 @@ export class BrowserHub {
       page,
       requests: [],
       pendingStarts: new Map(),
+      consoleLogs: [],
+      pageErrors: [],
       recording: true,
       createdAt: Date.now(),
     };
     this.wireNetworkCapture(session);
+    this.wirePageCapture(session);
     this.sessions.set(session.id, session);
     if (!this.defaultSessionId) this.defaultSessionId = session.id;
     return session;
@@ -147,6 +159,35 @@ export class BrowserHub {
       const entry = session.requests.find((r) => r.id === id);
       if (entry) entry.failure = req.failure()?.errorText ?? "failed";
     });
+  }
+
+  private wirePageCapture(session: Session) {
+    const attach = (page: Page) => {
+      page.on("console", (msg) => {
+        const loc = msg.location();
+        session.consoleLogs.push({
+          ts: Date.now(),
+          type: msg.type(),
+          text: msg.text(),
+          location: loc.url ? { url: loc.url, line: loc.lineNumber, column: loc.columnNumber } : undefined,
+        });
+        if (session.consoleLogs.length > 1000) session.consoleLogs.splice(0, 300);
+      });
+      page.on("pageerror", (err) => {
+        session.pageErrors.push({ ts: Date.now(), message: err.message, stack: err.stack });
+        if (session.pageErrors.length > 500) session.pageErrors.splice(0, 150);
+      });
+      page.on("dialog", async (dialog) => {
+        session.consoleLogs.push({
+          ts: Date.now(),
+          type: `dialog:${dialog.type()}`,
+          text: dialog.message(),
+        });
+        try { await dialog.dismiss(); } catch { /* pumppet */ }
+      });
+    };
+    attach(session.page);
+    session.context.on("page", (p) => attach(p));
   }
 
   getSession(id?: string): Session {
