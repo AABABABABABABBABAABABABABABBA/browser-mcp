@@ -21,6 +21,7 @@ import { browser2Tools } from "./tools/browser2.js";
 import { cryptoTools } from "./tools/crypto.js";
 import { wsTools } from "./tools/websocket.js";
 import { reportTools } from "./tools/report.js";
+import { exploitTools } from "./tools/exploit.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -35,6 +36,7 @@ const ALL: ToolDef[] = [
   ...scanTools,
   ...vulnTools,
   ...vuln2Tools,
+  ...exploitTools,
   ...reconTools,
   ...cookieTools,
   ...usernameTools,
