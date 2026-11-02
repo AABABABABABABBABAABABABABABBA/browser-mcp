@@ -24,6 +24,7 @@ import { reportTools } from "./tools/report.js";
 import { exploitTools } from "./tools/exploit.js";
 import { browser3Tools } from "./tools/browser3.js";
 import { liveViewTools } from "./tools/liveview.js";
+import { swarmTools } from "./tools/swarm.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -48,6 +49,7 @@ const ALL: ToolDef[] = [
   ...cryptoTools,
   ...userscriptTools,
   ...reportTools,
+  ...swarmTools,
   ...utilTools,
 ];
 const byName = new Map(ALL.map((t) => [t.name, t]));
