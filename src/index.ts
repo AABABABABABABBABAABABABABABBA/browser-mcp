@@ -31,6 +31,8 @@ import { aiTextTools } from "./tools/aitext.js";
 import { dataTools } from "./tools/data.js";
 import { osintTools } from "./tools/osint.js";
 import { devUtilTools } from "./tools/devutil.js";
+import { payloadTools } from "./tools/payloads.js";
+import { advancedTools } from "./tools/advanced.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -62,6 +64,8 @@ const ALL: ToolDef[] = [
   ...dataTools,
   ...osintTools,
   ...devUtilTools,
+  ...payloadTools,
+  ...advancedTools,
   ...utilTools,
 ];
 const byName = new Map(ALL.map((t) => [t.name, t]));
