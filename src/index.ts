@@ -22,12 +22,16 @@ import { cryptoTools } from "./tools/crypto.js";
 import { wsTools } from "./tools/websocket.js";
 import { reportTools } from "./tools/report.js";
 import { exploitTools } from "./tools/exploit.js";
+import { browser3Tools } from "./tools/browser3.js";
+import { liveViewTools } from "./tools/liveview.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
 const ALL: ToolDef[] = [
   ...browserTools,
   ...browser2Tools,
+  ...browser3Tools,
+  ...liveViewTools,
   ...consoleTools,
   ...sourceTools,
   ...discoverTools,

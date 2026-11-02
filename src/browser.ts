@@ -39,22 +39,26 @@ export interface Session {
 const BROWSER_EXECUTABLE = "/opt/pw-browsers/chromium";
 
 export class BrowserHub {
-  private browser: Browser | null = null;
+  private browsers: Map<string, Browser> = new Map(); // key: "headless" | "headful"
   private sessions = new Map<string, Session>();
   private defaultSessionId: string | null = null;
 
-  async getBrowser(): Promise<Browser> {
-    if (this.browser && this.browser.isConnected()) return this.browser;
+  async getBrowser(headless = true): Promise<Browser> {
+    const key = headless ? "headless" : "headful";
+    const existing = this.browsers.get(key);
+    if (existing && existing.isConnected()) return existing;
     const launchOpts: Parameters<typeof chromium.launch>[0] = {
-      headless: true,
+      headless,
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
     };
+    let browser: Browser;
     try {
-      this.browser = await chromium.launch(launchOpts);
+      browser = await chromium.launch(launchOpts);
     } catch {
-      this.browser = await chromium.launch({ ...launchOpts, executablePath: BROWSER_EXECUTABLE });
+      browser = await chromium.launch({ ...launchOpts, executablePath: BROWSER_EXECUTABLE });
     }
-    return this.browser;
+    this.browsers.set(key, browser);
+    return browser;
   }
 
   async openSession(opts: {
@@ -63,14 +67,17 @@ export class BrowserHub {
     extraHeaders?: Record<string, string>;
     ignoreHttpsErrors?: boolean;
     proxy?: string;
+    headless?: boolean;
+    recordVideoDir?: string;
   } = {}): Promise<Session> {
-    const browser = await this.getBrowser();
+    const browser = await this.getBrowser(opts.headless ?? true);
     const context = await browser.newContext({
       userAgent: opts.userAgent,
       viewport: opts.viewport ?? { width: 1366, height: 850 },
       extraHTTPHeaders: opts.extraHeaders,
       ignoreHTTPSErrors: opts.ignoreHttpsErrors ?? true,
       proxy: opts.proxy ? { server: opts.proxy } : undefined,
+      recordVideo: opts.recordVideoDir ? { dir: opts.recordVideoDir } : undefined,
     });
     const page = await context.newPage();
     const session: Session = {
@@ -223,10 +230,10 @@ export class BrowserHub {
       try { await s.context.close(); } catch { /* pumppet */ }
     }
     this.sessions.clear();
-    if (this.browser) {
-      try { await this.browser.close(); } catch { /* pumppet */ }
-      this.browser = null;
+    for (const b of this.browsers.values()) {
+      try { await b.close(); } catch { /* pumppet */ }
     }
+    this.browsers.clear();
   }
 }
 

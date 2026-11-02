@@ -7,7 +7,7 @@ const sessionArg = { sessionId: z.string().optional().describe("session id (uses
 export const browserTools: ToolDef[] = [
   {
     name: "browser_open",
-    description: "Open a new browser session. Returns a sessionId. Many later tools default to the first open session.",
+    description: "Open a new browser session. Returns a sessionId. Set headless:false to pop open a real visible Chromium window (works where you have a display). Set recordVideoDir to save a .webm of the session on close.",
     schema: z.object({
       userAgent: z.string().optional(),
       viewportWidth: z.number().int().positive().optional(),
@@ -15,6 +15,8 @@ export const browserTools: ToolDef[] = [
       extraHeaders: z.record(z.string()).optional(),
       proxy: z.string().optional().describe("e.g. http://127.0.0.1:8080"),
       ignoreHttpsErrors: z.boolean().optional(),
+      headless: z.boolean().optional().describe("default true. false opens a visible window on machines with a display"),
+      recordVideoDir: z.string().optional().describe("directory to save a .webm video of the session (written on close)"),
     }),
     handler: async (a) => {
       const s = await hub.openSession({
@@ -23,8 +25,10 @@ export const browserTools: ToolDef[] = [
         extraHeaders: a.extraHeaders,
         proxy: a.proxy,
         ignoreHttpsErrors: a.ignoreHttpsErrors,
+        headless: a.headless,
+        recordVideoDir: a.recordVideoDir,
       });
-      return ok({ sessionId: s.id, createdAt: s.createdAt });
+      return ok({ sessionId: s.id, headless: a.headless ?? true, createdAt: s.createdAt });
     },
   },
   {
