@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { hub } from "../browser.js";
 import { ToolDef, ok, err } from "../types.js";
+import { SECRET_PATTERNS, entropy, looksLikeTestOrPlaceholder } from "../patterns/secrets.js";
 
 const sessionArg = { sessionId: z.string().optional() };
 
@@ -53,22 +54,7 @@ function matchOutdated(product: string, version: string) {
   return null;
 }
 
-const SECRET_PATTERNS: Array<{ name: string; re: RegExp; severity: "high" | "medium" }> = [
-  { name: "AWS Access Key", re: /\bAKIA[0-9A-Z]{16}\b/g, severity: "high" },
-  { name: "AWS Secret Key", re: /aws(.{0,20})?['"][0-9a-zA-Z/+]{40}['"]/gi, severity: "high" },
-  { name: "Google API Key", re: /\bAIza[0-9A-Za-z_\-]{35}\b/g, severity: "high" },
-  { name: "Google OAuth", re: /\b[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com\b/g, severity: "medium" },
-  { name: "Stripe Live Key", re: /\bsk_live_[0-9a-zA-Z]{24,}\b/g, severity: "high" },
-  { name: "Stripe Publishable", re: /\bpk_live_[0-9a-zA-Z]{24,}\b/g, severity: "low" as any },
-  { name: "GitHub Token", re: /\bghp_[0-9A-Za-z]{36}\b|\bgithub_pat_[A-Za-z0-9_]{70,}\b/g, severity: "high" },
-  { name: "Slack Token", re: /\bxox[baprs]-[0-9A-Za-z\-]{10,}\b/g, severity: "high" },
-  { name: "JWT", re: /\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b/g, severity: "medium" },
-  { name: "Private Key PEM", re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |)PRIVATE KEY-----/g, severity: "high" },
-  { name: "Firebase URL", re: /https:\/\/[\w-]+\.firebaseio\.com/g, severity: "medium" },
-  { name: "Mapbox Token", re: /\bpk\.ey[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\b/g, severity: "medium" },
-  { name: "Sentry DSN", re: /https:\/\/[0-9a-f]{32}@[\w.]+\/\d+/g, severity: "medium" },
-  { name: "Basic Auth URL", re: /https?:\/\/[^\s"'`]+:[^\s"'`]+@[^\s"'`]+/g, severity: "high" },
-];
+// secret patterns moved to ../patterns/secrets.ts (SECRET_PATTERNS)
 
 export const vulnTools: ToolDef[] = [
   {
@@ -152,14 +138,37 @@ export const vulnTools: ToolDef[] = [
     },
   },
   {
-    name: "scan_js_secrets",
-    description: "Scan loaded JS/HTML for hardcoded secrets — AWS/Google/Stripe/GitHub keys, JWTs, private keys, basic-auth URLs, Firebase/Mapbox/Sentry endpoints.",
-    schema: z.object({ ...sessionArg }),
+    name: "scan_api_keys",
+    description: "Find exposed API keys / tokens / secrets in EVERY source the session has touched — page HTML, every inline <script>, every captured response body (JS/CSS/JSON/HTML/text), DOM data-* attributes, meta tags, localStorage, sessionStorage. 60+ vendor patterns (AWS/Google/Firebase/Stripe/GitHub/GitLab/Slack/Discord/Telegram/Twilio/Mailgun/SendGrid/PayPal/Shopify/Dropbox/Heroku/DigitalOcean/OpenAI/Anthropic/HuggingFace/Mapbox/Sentry/NewRelic/Datadog/npm/PyPI/Vercel/Netlify/Cloudflare/Supabase/Twitter/Facebook) plus context-aware detection (apiKey: \"...\"), env-style assignments, DB connection strings with embedded creds, PEM/PGP/age keys, and a configurable entropy heuristic for anonymous high-entropy strings sitting near secret-ish identifiers.",
+    schema: z.object({
+      includeDOM: z.boolean().optional().describe("default true — also sweeps data-* attrs, meta tags, localStorage, sessionStorage"),
+      entropyThreshold: z.number().optional().describe("flag high-entropy strings (bits/char) >= this when near 'api/token/secret/password' words; default 4.5, set 0 to disable"),
+      includeTestKeys: z.boolean().optional().describe("default false — hide known test/example placeholders like AKIAIOSFODNN7EXAMPLE"),
+      ...sessionArg,
+    }),
     handler: async (a) => {
       const s = hub.getSession(a.sessionId);
       const sources: Array<{ url: string; body: string }> = [];
       try { sources.push({ url: `page:${s.page.url()}`, body: await s.page.content() }); } catch { /* pumppet */ }
       for (const r of s.requests) if (r.responseBodySnippet) sources.push({ url: r.url, body: r.responseBodySnippet });
+
+      if (a.includeDOM !== false) {
+        try {
+          const dom = await s.page.evaluate(() => {
+            const out: Array<{ where: string; text: string }> = [];
+            for (const el of Array.from(document.querySelectorAll("[data-key],[data-token],[data-secret],[data-api],[data-apikey],[data-auth]"))) {
+              for (const at of Array.from((el as any).attributes)) if ((at as any).name.startsWith("data-")) out.push({ where: `dom[${el.tagName.toLowerCase()}][${(at as any).name}]`, text: (at as any).value });
+            }
+            for (const m of Array.from(document.querySelectorAll('meta[name*="key" i],meta[name*="token" i],meta[name*="api" i]'))) out.push({ where: `meta[${(m as any).name}]`, text: (m as any).content });
+            for (const sc of Array.from(document.querySelectorAll("script:not([src])"))) out.push({ where: "inline-script", text: sc.textContent ?? "" });
+            try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; out.push({ where: `localStorage[${k}]`, text: localStorage.getItem(k) ?? "" }); } } catch {}
+            try { for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i)!; out.push({ where: `sessionStorage[${k}]`, text: sessionStorage.getItem(k) ?? "" }); } } catch {}
+            return out;
+          });
+          for (const d of dom) if (d.text) sources.push({ url: d.where, body: d.text });
+        } catch { /* pumppet */ }
+      }
+
       const findings: any[] = [];
       const seen = new Set<string>();
       for (const src of sources) {
@@ -167,19 +176,69 @@ export const vulnTools: ToolDef[] = [
           pat.re.lastIndex = 0;
           let m: RegExpExecArray | null;
           while ((m = pat.re.exec(src.body))) {
-            const key = `${pat.name}:${m[0]}:${src.url}`;
+            const captured = pat.group !== undefined ? m[pat.group] : m[0];
+            if (!captured) continue;
+            if (pat.near) {
+              const ctxStart = Math.max(0, m.index - 60);
+              const ctxEnd = Math.min(src.body.length, m.index + m[0].length + 60);
+              if (!pat.near.test(src.body.slice(ctxStart, ctxEnd))) continue;
+            }
+            if (!a.includeTestKeys && looksLikeTestOrPlaceholder(captured)) continue;
+            const key = `${pat.name}:${captured}:${src.url}`;
             if (seen.has(key)) continue; seen.add(key);
             findings.push({
               severity: pat.severity,
               type: pat.name,
-              match: m[0].length > 100 ? m[0].slice(0, 60) + "…" : m[0],
+              match: captured.length > 100 ? captured.slice(0, 80) + "…" : captured,
               source: src.url,
-              context: src.body.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40),
+              context: src.body.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40).replace(/\s+/g, " "),
             });
           }
         }
       }
-      return ok({ count: findings.length, findings });
+
+      const entThreshold = a.entropyThreshold ?? 4.5;
+      if (entThreshold > 0) {
+        const ENTRE = /["'`]([A-Za-z0-9+/=_\-]{32,200})["'`]/g;
+        const CTX_WORDS = /\b(api[_\- ]?key|apikey|token|secret|password|auth|bearer|credentials)\b/i;
+        for (const src of sources) {
+          ENTRE.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = ENTRE.exec(src.body))) {
+            const val = m[1];
+            if (val.length < 32) continue;
+            if (!a.includeTestKeys && looksLikeTestOrPlaceholder(val)) continue;
+            if (entropy(val) < entThreshold) continue;
+            const ctxStart = Math.max(0, m.index - 60);
+            const ctxEnd = Math.min(src.body.length, m.index + m[0].length + 60);
+            const ctx = src.body.slice(ctxStart, ctxEnd);
+            if (!CTX_WORDS.test(ctx)) continue;
+            const key = `entropy:${val}:${src.url}`;
+            if (seen.has(key)) continue; seen.add(key);
+            findings.push({
+              severity: "medium",
+              type: "High-entropy string near secret-ish identifier",
+              match: val.length > 100 ? val.slice(0, 80) + "…" : val,
+              source: src.url,
+              entropy: Math.round(entropy(val) * 100) / 100,
+              context: ctx.replace(/\s+/g, " "),
+            });
+          }
+        }
+      }
+
+      const summary = { high: 0, medium: 0, low: 0 } as Record<string, number>;
+      for (const f of findings) summary[f.severity]++;
+      return ok({ count: findings.length, summary, findings });
+    },
+  },
+  {
+    name: "scan_js_secrets",
+    description: "Alias for scan_api_keys (kept for backward compat).",
+    schema: z.object({ ...sessionArg }),
+    handler: async (a) => {
+      const fn = vulnTools.find((t) => t.name === "scan_api_keys")!;
+      return fn.handler({ ...a });
     },
   },
   {

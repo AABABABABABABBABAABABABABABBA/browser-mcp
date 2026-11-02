@@ -245,7 +245,7 @@ export const discoverTools: ToolDef[] = [
       runs.push(
         ["headers", () => scanTools.find((t) => t.name === "scan_headers")!.handler({ url: s.page.url(), sessionId: a.sessionId })],
         ["outdated", () => vulnTools.find((t) => t.name === "scan_outdated")!.handler({ sessionId: a.sessionId })],
-        ["secrets", () => vulnTools.find((t) => t.name === "scan_js_secrets")!.handler({ sessionId: a.sessionId })],
+        ["api_keys", () => vulnTools.find((t) => t.name === "scan_api_keys")!.handler({ sessionId: a.sessionId })],
         ["sensitive_files", () => vulnTools.find((t) => t.name === "scan_sensitive_files")!.handler({ baseUrl: new URL(s.page.url()).origin, sessionId: a.sessionId })],
         ["api_from_source", () => apiTools.find((t) => t.name === "api_from_source")!.handler({ sessionId: a.sessionId })],
         ["api_from_network", () => apiTools.find((t) => t.name === "api_from_network")!.handler({ sessionId: a.sessionId })],
