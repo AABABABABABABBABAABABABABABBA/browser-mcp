@@ -15,11 +15,18 @@ import { vulnTools } from "./tools/vuln.js";
 import { discoverTools } from "./tools/discover.js";
 import { cookieTools } from "./tools/cookies.js";
 import { usernameTools } from "./tools/username.js";
+import { vuln2Tools } from "./tools/vuln2.js";
+import { reconTools } from "./tools/recon.js";
+import { browser2Tools } from "./tools/browser2.js";
+import { cryptoTools } from "./tools/crypto.js";
+import { wsTools } from "./tools/websocket.js";
+import { reportTools } from "./tools/report.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
 const ALL: ToolDef[] = [
   ...browserTools,
+  ...browser2Tools,
   ...consoleTools,
   ...sourceTools,
   ...discoverTools,
@@ -27,9 +34,14 @@ const ALL: ToolDef[] = [
   ...networkTools,
   ...scanTools,
   ...vulnTools,
+  ...vuln2Tools,
+  ...reconTools,
   ...cookieTools,
   ...usernameTools,
+  ...wsTools,
+  ...cryptoTools,
   ...userscriptTools,
+  ...reportTools,
   ...utilTools,
 ];
 const byName = new Map(ALL.map((t) => [t.name, t]));
