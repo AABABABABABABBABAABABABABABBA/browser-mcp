@@ -25,6 +25,12 @@ import { exploitTools } from "./tools/exploit.js";
 import { browser3Tools } from "./tools/browser3.js";
 import { liveViewTools } from "./tools/liveview.js";
 import { swarmTools } from "./tools/swarm.js";
+import { searchTools } from "./tools/search.js";
+import { extractTools } from "./tools/extract.js";
+import { aiTextTools } from "./tools/aitext.js";
+import { dataTools } from "./tools/data.js";
+import { osintTools } from "./tools/osint.js";
+import { devUtilTools } from "./tools/devutil.js";
 import { hub } from "./browser.js";
 import type { ToolDef } from "./types.js";
 
@@ -50,6 +56,12 @@ const ALL: ToolDef[] = [
   ...userscriptTools,
   ...reportTools,
   ...swarmTools,
+  ...searchTools,
+  ...extractTools,
+  ...aiTextTools,
+  ...dataTools,
+  ...osintTools,
+  ...devUtilTools,
   ...utilTools,
 ];
 const byName = new Map(ALL.map((t) => [t.name, t]));
